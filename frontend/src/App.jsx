@@ -1,13 +1,17 @@
-import { useCallback, useRef, useState } from 'react'
-import { Alert, AppBar, Box, Paper, Toolbar, Typography } from '@mui/material'
+import { Suspense, lazy, useCallback, useRef, useState } from 'react'
+import { Alert, AppBar, Box, CircularProgress, Paper, Toolbar, Typography } from '@mui/material'
 import LocalShippingIcon from '@mui/icons-material/LocalShipping'
 import { planTrip } from './api.js'
 import TripForm from './components/TripForm.jsx'
+
+// MapLibre is the largest dependency; load it in parallel so the form renders first.
+const RouteMap = lazy(() => import('./components/RouteMap.jsx'))
 
 const SIDEBAR_WIDTH = 400
 
 export default function App() {
   const [plan, setPlan] = useState(null)
+  const [selectedRouteId, setSelectedRouteId] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const requestRef = useRef(null)
@@ -19,7 +23,9 @@ export default function App() {
     setLoading(true)
     setError(null)
     try {
-      setPlan(await planTrip(payload, { signal: controller.signal }))
+      const result = await planTrip(payload, { signal: controller.signal })
+      setPlan(result)
+      setSelectedRouteId(result.recommended_route_id)
     } catch (err) {
       if (err.name !== 'AbortError') setError(err.message)
     } finally {
@@ -47,7 +53,7 @@ export default function App() {
             flexShrink: 0,
             borderRight: { md: 1 },
             borderBottom: { xs: 1, md: 0 },
-            borderColor: { xs: 'divider', md: 'divider' },
+            borderColor: 'divider',
             overflowY: { md: 'auto' },
             p: 2,
           }}
@@ -65,7 +71,17 @@ export default function App() {
           )}
         </Paper>
 
-        <Box sx={{ flex: 1, minHeight: { xs: 420, md: 0 }, bgcolor: 'grey.200' }} />
+        <Box sx={{ flex: 1, minHeight: { xs: 420, md: 0 }, bgcolor: 'grey.200' }}>
+          <Suspense
+            fallback={
+              <Box sx={{ height: '100%', display: 'grid', placeItems: 'center' }}>
+                <CircularProgress />
+              </Box>
+            }
+          >
+            <RouteMap plan={plan} selectedRouteId={selectedRouteId} onSelectRoute={setSelectedRouteId} />
+          </Suspense>
+        </Box>
       </Box>
     </Box>
   )
