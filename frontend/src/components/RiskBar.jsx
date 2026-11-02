@@ -8,7 +8,7 @@ export default function RiskBar({ milesByLevel, height = 8 }) {
     <Box
       role="img"
       aria-label="Miles by risk level"
-      sx={{ display: 'flex', height, borderRadius: height / 2, overflow: 'hidden', bgcolor: 'grey.200' }}
+      sx={{ display: 'flex', height, borderRadius: height / 2, overflow: 'hidden', bgcolor: 'action.hover' }}
     >
       {total > 0 &&
         RISK_LEVELS.map((risk) => {

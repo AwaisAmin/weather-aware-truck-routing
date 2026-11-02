@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Map, { Layer, Marker, NavigationControl, Popup, Source } from 'react-map-gl/maplibre'
 import { setWorkerUrl } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
-import { Box, LinearProgress, Paper, Typography, useMediaQuery } from '@mui/material'
+import { Box, LinearProgress, Paper, Typography, useMediaQuery, useTheme } from '@mui/material'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { RISK_COLOR_EXPRESSION } from '../constants/risk.js'
+import { MAP_COLORS } from '../theme.js'
 import CheckpointPopup from './CheckpointPopup.jsx'
 import ForecastOverlay from './ForecastOverlay.jsx'
 import MapLegend from './MapLegend.jsx'
@@ -12,7 +13,6 @@ import MapLegend from './MapLegend.jsx'
 // MapLibre locates its worker relative to its own module, which breaks once Vite bundles it.
 setWorkerUrl(workerUrl)
 
-const MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron'
 // Contiguous United States, fitted to whatever size the map container has.
 const INITIAL_VIEW = {
   bounds: [
@@ -21,8 +21,6 @@ const INITIAL_VIEW = {
   ],
   fitBoundsOptions: { padding: 20 },
 }
-const SELECTED_COLOR = '#1f5fbf'
-const OTHER_COLOR = '#8a99a8'
 const INTERACTIVE_LAYERS = ['checkpoints', 'routes-hit']
 
 function routesToGeoJSON(routes) {
@@ -83,6 +81,7 @@ export default function RouteMap({
   const [cursor, setCursor] = useState('')
   // On touch layouts the map sits inside a scrolling page: pan with two fingers.
   const isTouchLayout = useMediaQuery((theme) => theme.breakpoints.down('md'))
+  const colors = MAP_COLORS[useTheme().palette.mode]
   const routes = useMemo(() => plan?.routes ?? [], [plan])
 
   // Rebuilt only when a new plan arrives; selection is handled in paint expressions.
@@ -125,11 +124,11 @@ export default function RouteMap({
 
   const routeLinePaint = useMemo(
     () => ({
-      'line-color': ['case', isSelected, SELECTED_COLOR, OTHER_COLOR],
+      'line-color': ['case', isSelected, colors.selectedRoute, colors.otherRoute],
       'line-width': ['case', isSelected, 6, 4],
       'line-opacity': ['case', isSelected, 1, 0.75],
     }),
-    [isSelected],
+    [isSelected, colors],
   )
 
   const checkpointPaint = useMemo(
@@ -144,24 +143,24 @@ export default function RouteMap({
         9,
         ['case', isSelected, 8, 5],
       ],
-      'circle-stroke-color': '#ffffff',
+      'circle-stroke-color': colors.casing,
       'circle-stroke-width': ['case', isSelected, 1.5, 0.75],
       'circle-opacity': ['case', isSelected, 1, 0.6],
       'circle-stroke-opacity': ['case', isSelected, 1, 0.6],
     }),
-    [isSelected],
+    [isSelected, colors],
   )
 
   // Draw the selected route and its checkpoints above the others.
   const sortKey = useMemo(() => ['case', isSelected, 1, 0], [isSelected])
 
   return (
-    <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
+    <Box sx={{ position: 'relative', width: '100%', height: '100%', ...popupStyles }}>
       <Map
         ref={mapRef}
         initialViewState={INITIAL_VIEW}
         cooperativeGestures={isTouchLayout}
-        mapStyle={MAP_STYLE}
+        mapStyle={colors.style}
         interactiveLayerIds={routes.length ? INTERACTIVE_LAYERS : []}
         cursor={cursor}
         onClick={handleClick}
@@ -178,7 +177,7 @@ export default function RouteMap({
             id="routes-casing"
             type="line"
             layout={{ 'line-join': 'round', 'line-cap': 'round', 'line-sort-key': sortKey }}
-            paint={{ 'line-color': '#ffffff', 'line-width': ['case', isSelected, 10, 7] }}
+            paint={{ 'line-color': colors.casing, 'line-width': ['case', isSelected, 10, 7] }}
           />
           <Layer
             id="routes-line"
@@ -209,6 +208,7 @@ export default function RouteMap({
             route={route}
             position={labelCoordinates[index]}
             selected={route.id === selectedRouteId}
+            color={route.id === selectedRouteId ? colors.selectedRoute : colors.otherRoute}
             onSelect={() => onSelectRoute(route.id)}
           />
         ))}
@@ -261,6 +261,23 @@ export default function RouteMap({
 
 const LABEL_SAMPLES = 60
 
+// MapLibre's popup and controls are styled for light maps; follow the app theme instead.
+const popupStyles = {
+  '& .maplibregl-popup-content': {
+    bgcolor: 'background.paper',
+    color: 'text.primary',
+    borderRadius: 2,
+    boxShadow: 6,
+  },
+  '& .maplibregl-popup-close-button': { color: 'text.secondary', fontSize: 18, px: 0.75 },
+  '& .maplibregl-popup-anchor-top .maplibregl-popup-tip, & .maplibregl-popup-anchor-top-left .maplibregl-popup-tip, & .maplibregl-popup-anchor-top-right .maplibregl-popup-tip':
+    { borderBottomColor: 'background.paper' },
+  '& .maplibregl-popup-anchor-bottom .maplibregl-popup-tip, & .maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip, & .maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip':
+    { borderTopColor: 'background.paper' },
+  '& .maplibregl-popup-anchor-left .maplibregl-popup-tip': { borderRightColor: 'background.paper' },
+  '& .maplibregl-popup-anchor-right .maplibregl-popup-tip': { borderLeftColor: 'background.paper' },
+}
+
 /** For each route, the vertex farthest from every other route, so labels sit where routes diverge. */
 function labelPositions(routes) {
   const sample = (route) => {
@@ -287,7 +304,7 @@ function labelPositions(routes) {
   })
 }
 
-function RouteLabel({ route, position, selected, onSelect }) {
+function RouteLabel({ route, position, selected, color, onSelect }) {
   const [lon, lat] = position
   return (
     <Marker longitude={lon} latitude={lat} anchor="center" style={{ zIndex: selected ? 2 : 1 }}>
@@ -311,7 +328,7 @@ function RouteLabel({ route, position, selected, onSelect }) {
           fontWeight: 700,
           fontSize: 13,
           color: 'common.white',
-          bgcolor: selected ? SELECTED_COLOR : OTHER_COLOR,
+          bgcolor: color,
           boxShadow: 2,
         }}
       >

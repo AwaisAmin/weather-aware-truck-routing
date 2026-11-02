@@ -4,13 +4,18 @@ import {
   AppBar,
   Box,
   CircularProgress,
+  IconButton,
   Paper,
   Toolbar,
+  Tooltip,
   Typography,
   useMediaQuery,
 } from '@mui/material'
+import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined'
+import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined'
 import LocalShippingIcon from '@mui/icons-material/LocalShipping'
 import { fetchHeatmap, planTrip } from './api.js'
+import { useColorMode } from './colorModeContext.js'
 import MapErrorBoundary from './components/MapErrorBoundary.jsx'
 import RouteResults from './components/RouteResults.jsx'
 import TripForm from './components/TripForm.jsx'
@@ -33,6 +38,7 @@ export default function App() {
   const [error, setError] = useState(null)
   const [heatmapState, setHeatmapState] = useState(EMPTY_HEATMAP)
   const isDesktop = useMediaQuery((theme) => theme.breakpoints.up('md'))
+  const { mode, toggleMode } = useColorMode()
   const requestRef = useRef(null)
   const heatmapRequestRef = useRef(null)
 
@@ -130,6 +136,16 @@ export default function App() {
           <Typography variant="h6" component="h1" sx={{ fontWeight: 600, fontSize: { xs: 16, sm: 20 } }}>
             Weather-Aware Truck Routing
           </Typography>
+          <Tooltip title={mode === 'dark' ? 'Light mode' : 'Dark mode'}>
+            <IconButton
+              color="inherit"
+              onClick={toggleMode}
+              aria-label="Toggle dark mode"
+              sx={{ ml: 'auto' }}
+            >
+              {mode === 'dark' ? <LightModeOutlinedIcon /> : <DarkModeOutlinedIcon />}
+            </IconButton>
+          </Tooltip>
         </Toolbar>
       </AppBar>
 
@@ -155,7 +171,7 @@ export default function App() {
           {isDesktop && results && <Box sx={{ mt: 2 }}>{results}</Box>}
         </Paper>
 
-        <Box sx={{ flex: { md: 1 }, height: { xs: '70vh', md: 'auto' }, bgcolor: 'grey.200' }}>{map}</Box>
+        <Box sx={{ flex: { md: 1 }, height: { xs: '70vh', md: 'auto' }, bgcolor: 'action.hover' }}>{map}</Box>
 
         {!isDesktop && results && <Box sx={{ p: 2 }}>{results}</Box>}
       </Box>

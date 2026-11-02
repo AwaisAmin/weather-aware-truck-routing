@@ -27,6 +27,10 @@ travel time.
 - **Corridor weather heatmap** with a 0–48 h slider and playback. A truck marker moves along the
   selected route in step with the slider, so you can see what weather it will meet and when.
 - **Responsive layout**: a sidebar on desktop; on mobile the form, map and results stack.
+- **Dark mode**: light by default, with a toggle in the header that remembers the choice. The base map
+  switches to a dark style too.
+- **CI**: GitHub Actions runs the backend tests and Django deploy checks, plus frontend lint,
+  format check and build, on every push.
 
 ## How it works
 
