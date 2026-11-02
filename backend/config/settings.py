@@ -27,6 +27,9 @@ ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 # Render sets this to the service's public hostname.
 if os.getenv("RENDER_EXTERNAL_HOSTNAME"):
     ALLOWED_HOSTS.append(os.environ["RENDER_EXTERNAL_HOSTNAME"])
+# Vercel sets VERCEL=1; deployments are served from *.vercel.app.
+if os.getenv("VERCEL"):
+    ALLOWED_HOSTS.append(".vercel.app")
 
 if not DEBUG:
     # TLS is terminated by the hosting proxy.
