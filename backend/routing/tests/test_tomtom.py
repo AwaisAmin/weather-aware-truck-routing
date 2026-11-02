@@ -42,10 +42,11 @@ def test_detour_point_is_perpendicular_to_the_trip():
 
 
 def test_route_params_use_gross_weight_and_future_departure():
-    future = datetime.now(timezone.utc) + timedelta(hours=3)
+    future = datetime(2099, 1, 1, 10, 44, 30, tzinfo=timezone.utc)
     params = tomtom._route_params(future, load_lb=40_000)
     assert params["vehicleWeight"] == round(75_000 * tomtom.LB_TO_KG)
-    assert params["departAt"] == future.isoformat(timespec="seconds")
+    # Rounded down to the quarter hour so nearby requests share the route cache.
+    assert params["departAt"] == "2099-01-01T10:30:00+00:00"
 
     past = datetime.now(timezone.utc) - timedelta(hours=1)
     assert tomtom._route_params(past, load_lb=0)["departAt"] == "now"

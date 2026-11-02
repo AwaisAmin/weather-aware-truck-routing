@@ -31,6 +31,8 @@ FALLBACK_DETOUR_OFFSETS = (0.15, -0.15, 0.3, -0.3)
 # Routes whose length and duration both differ by less than this are treated as duplicates.
 DUPLICATE_TOLERANCE = 0.01
 
+DEPARTURE_ROUNDING_MINUTES = 15
+
 GEOCODE_CACHE_SECONDS = 24 * 60 * 60
 ROUTE_CACHE_SECONDS = 10 * 60
 
@@ -123,6 +125,11 @@ def fetch_routes(origin, destination, depart_at, load_lb):
 def _route_params(depart_at, load_lb):
     now = datetime.now(timezone.utc)
     gross_kg = round((TRUCK_TARE_LB + load_lb) * LB_TO_KG)
+    # Truck alternatives take TomTom several seconds. Rounding the departure lets nearby
+    # requests share a cached result; checkpoint ETAs still use the exact departure.
+    depart_at = depart_at.replace(
+        minute=depart_at.minute - depart_at.minute % DEPARTURE_ROUNDING_MINUTES, second=0, microsecond=0
+    )
     return {
         "travelMode": "truck",
         "vehicleCommercial": "true",

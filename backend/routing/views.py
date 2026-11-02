@@ -1,6 +1,8 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from .planner import plan_trip
+from .serializers import PlanRequestSerializer
 from .services import tomtom
 from .services.http import ExternalServiceError
 
@@ -19,5 +21,15 @@ def geocode(request):
     query = request.query_params.get("q", "")
     try:
         return Response({"results": tomtom.geocode(query)})
+    except ExternalServiceError as exc:
+        return error_response(exc)
+
+
+@api_view(["POST"])
+def plan(request):
+    serializer = PlanRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    try:
+        return Response(plan_trip(**serializer.validated_data))
     except ExternalServiceError as exc:
         return error_response(exc)
