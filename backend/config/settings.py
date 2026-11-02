@@ -6,6 +6,7 @@ All environment-specific values come from environment variables (see .env.exampl
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -16,9 +17,31 @@ def env_list(name, default=""):
     return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
 
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-insecure-secret-key-change-me")
-DEBUG = os.getenv("DJANGO_DEBUG", "true").lower() == "true"
+# Production-safe defaults: debug is opt-in (see .env.example for local development).
+DEBUG = os.getenv("DJANGO_DEBUG", "false").lower() == "true"
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-insecure-secret-key" if DEBUG else "")
+if not SECRET_KEY:
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is false.")
+
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
+# Render sets this to the service's public hostname.
+if os.getenv("RENDER_EXTERNAL_HOSTNAME"):
+    ALLOWED_HOSTS.append(os.environ["RENDER_EXTERNAL_HOSTNAME"])
+
+if not DEBUG:
+    # TLS is terminated by the hosting proxy.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = os.getenv("DJANGO_SECURE_SSL_REDIRECT", "true").lower() == "true"
+    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
+SILENCED_SYSTEM_CHECKS = [
+    # No cookies or sessions: the JSON API is not exposed to cross-site request forgery.
+    "security.W003",
+    # HSTS subdomain/preload policy belongs to the owner of the parent domain (e.g. onrender.com).
+    "security.W005",
+    "security.W021",
+]
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
@@ -31,6 +54,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -39,13 +63,23 @@ WSGI_APPLICATION = "config.wsgi.application"
 # The API is stateless: no models, no sessions, no auth.
 DATABASES = {}
 
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "truck-routing",
-        "OPTIONS": {"MAX_ENTRIES": 5000},
+# In-process cache by default (shared by gunicorn threads in a single worker). Set REDIS_URL to
+# share geocoding, route and forecast results across workers and instances.
+if os.getenv("REDIS_URL"):
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": os.environ["REDIS_URL"],
+        }
     }
-}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "truck-routing",
+            "OPTIONS": {"MAX_ENTRIES": 5000},
+        }
+    }
 
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
@@ -64,3 +98,10 @@ USE_TZ = True
 # Third-party services
 TOMTOM_API_KEY = os.getenv("TOMTOM_API_KEY", "")
 HTTP_TIMEOUT_SECONDS = float(os.getenv("HTTP_TIMEOUT_SECONDS", "15"))
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "root": {"handlers": ["console"], "level": os.getenv("LOG_LEVEL", "INFO")},
+}
