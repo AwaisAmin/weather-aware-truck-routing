@@ -24,9 +24,6 @@ if not SECRET_KEY:
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is false.")
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
-# Render sets this to the service's public hostname.
-if os.getenv("RENDER_EXTERNAL_HOSTNAME"):
-    ALLOWED_HOSTS.append(os.environ["RENDER_EXTERNAL_HOSTNAME"])
 # Vercel sets VERCEL=1; deployments are served from *.vercel.app.
 if os.getenv("VERCEL"):
     ALLOWED_HOSTS.append(".vercel.app")
@@ -41,7 +38,7 @@ if not DEBUG:
 SILENCED_SYSTEM_CHECKS = [
     # No cookies or sessions: the JSON API is not exposed to cross-site request forgery.
     "security.W003",
-    # HSTS subdomain/preload policy belongs to the owner of the parent domain (e.g. onrender.com).
+    # HSTS subdomain/preload policy belongs to the owner of the parent domain (e.g. vercel.app).
     "security.W005",
     "security.W021",
 ]
