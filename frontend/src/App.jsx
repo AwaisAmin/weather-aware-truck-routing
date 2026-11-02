@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useRef, useState } from 'react'
 import { Alert, AppBar, Box, CircularProgress, Paper, Toolbar, Typography } from '@mui/material'
 import LocalShippingIcon from '@mui/icons-material/LocalShipping'
 import { planTrip } from './api.js'
+import RouteResults from './components/RouteResults.jsx'
 import TripForm from './components/TripForm.jsx'
 
 // MapLibre is the largest dependency; load it in parallel so the form renders first.
@@ -12,6 +13,8 @@ const SIDEBAR_WIDTH = 400
 export default function App() {
   const [plan, setPlan] = useState(null)
   const [selectedRouteId, setSelectedRouteId] = useState(null)
+  // Checkpoint whose details are open: { routeId, index, fromList }.
+  const [focus, setFocus] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const requestRef = useRef(null)
@@ -26,11 +29,17 @@ export default function App() {
       const result = await planTrip(payload, { signal: controller.signal })
       setPlan(result)
       setSelectedRouteId(result.recommended_route_id)
+      setFocus(null)
     } catch (err) {
       if (err.name !== 'AbortError') setError(err.message)
     } finally {
       if (requestRef.current === controller) setLoading(false)
     }
+  }, [])
+
+  const selectRoute = useCallback((routeId) => {
+    setSelectedRouteId(routeId)
+    setFocus(null)
   }, [])
 
   return (
@@ -64,10 +73,16 @@ export default function App() {
               {error}
             </Alert>
           )}
-          {plan && !loading && (
-            <Alert severity="success" sx={{ mt: 2 }}>
-              Route {plan.recommended_route_id} — {plan.recommendation_reason}
-            </Alert>
+          {plan && (
+            <Box sx={{ mt: 2, opacity: loading ? 0.5 : 1, transition: 'opacity 200ms' }}>
+              <RouteResults
+                plan={plan}
+                selectedRouteId={selectedRouteId}
+                onSelectRoute={selectRoute}
+                focus={focus}
+                onFocus={setFocus}
+              />
+            </Box>
           )}
         </Paper>
 
@@ -79,7 +94,13 @@ export default function App() {
               </Box>
             }
           >
-            <RouteMap plan={plan} selectedRouteId={selectedRouteId} onSelectRoute={setSelectedRouteId} />
+            <RouteMap
+              plan={plan}
+              selectedRouteId={selectedRouteId}
+              onSelectRoute={selectRoute}
+              focus={focus}
+              onFocus={setFocus}
+            />
           </Suspense>
         </Box>
       </Box>

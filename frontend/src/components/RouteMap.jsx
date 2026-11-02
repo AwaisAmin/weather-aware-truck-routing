@@ -6,6 +6,7 @@ import { Box } from '@mui/material'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { RISK_COLOR_EXPRESSION } from '../constants/risk.js'
 import CheckpointPopup from './CheckpointPopup.jsx'
+import MapLegend from './MapLegend.jsx'
 
 // MapLibre locates its worker relative to its own module, which breaks once Vite bundles it.
 setWorkerUrl(workerUrl)
@@ -56,9 +57,12 @@ function boundsOf(routes) {
   ]
 }
 
-export default function RouteMap({ plan, selectedRouteId, onSelectRoute }) {
+/**
+ * focus: { routeId, index, fromList } | null — the checkpoint whose popup is open.
+ * When it was chosen from the sidebar list, the map pans to it.
+ */
+export default function RouteMap({ plan, selectedRouteId, onSelectRoute, focus, onFocus }) {
   const mapRef = useRef(null)
-  const [popup, setPopup] = useState(null)
   const [cursor, setCursor] = useState('')
   const routes = useMemo(() => plan?.routes ?? [], [plan])
 
@@ -75,26 +79,27 @@ export default function RouteMap({ plan, selectedRouteId, onSelectRoute }) {
 
   useEffect(fitToPlan, [fitToPlan])
 
-  // A popup belongs to the plan it was opened on; a new plan hides it.
-  const activePopup = popup?.routes === routes ? popup : null
+  const focusedRoute = focus ? routes.find((r) => r.id === focus.routeId) : null
+  const focusedCheckpoint = focusedRoute?.checkpoints[focus.index] ?? null
+
+  useEffect(() => {
+    if (focus?.fromList && focusedCheckpoint && mapRef.current) {
+      mapRef.current.easeTo({ center: [focusedCheckpoint.lon, focusedCheckpoint.lat], duration: 600 })
+    }
+  }, [focus, focusedCheckpoint])
 
   const handleClick = useCallback(
     (event) => {
       const feature = event.features?.[0]
       if (!feature) {
-        setPopup(null)
+        onFocus(null)
         return
       }
-      const { routeId } = feature.properties
+      const { routeId, index } = feature.properties
       onSelectRoute(routeId)
-      if (feature.layer.id === 'checkpoints') {
-        const route = routes.find((r) => r.id === routeId)
-        setPopup({ routes, route, checkpoint: route.checkpoints[feature.properties.index] })
-      } else {
-        setPopup(null)
-      }
+      onFocus(feature.layer.id === 'checkpoints' ? { routeId, index, fromList: false } : null)
     },
-    [routes, onSelectRoute],
+    [onSelectRoute, onFocus],
   )
 
   const routeLinePaint = useMemo(
@@ -175,18 +180,20 @@ export default function RouteMap({ plan, selectedRouteId, onSelectRoute }) {
           </>
         )}
 
-        {activePopup && (
+        {focusedCheckpoint && (
           <Popup
-            longitude={activePopup.checkpoint.lon}
-            latitude={activePopup.checkpoint.lat}
+            longitude={focusedCheckpoint.lon}
+            latitude={focusedCheckpoint.lat}
             offset={12}
             maxWidth="280px"
-            onClose={() => setPopup(null)}
+            closeOnClick={false}
+            onClose={() => onFocus(null)}
           >
-            <CheckpointPopup route={activePopup.route} checkpoint={activePopup.checkpoint} />
+            <CheckpointPopup route={focusedRoute} checkpoint={focusedCheckpoint} />
           </Popup>
         )}
       </Map>
+      {plan && <MapLegend />}
     </Box>
   )
 }

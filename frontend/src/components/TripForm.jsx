@@ -77,8 +77,6 @@ export default function TripForm({ loading, onSubmit }) {
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <Stack spacing={2} sx={{ flex: 1, minWidth: 0 }}>
             <PlaceAutocomplete
-              // Remount on swap so each field shows its new place's label.
-              key={`origin-${origin?.label ?? ''}`}
               label="Origin"
               value={origin}
               onChange={setOrigin}
@@ -87,7 +85,6 @@ export default function TripForm({ loading, onSubmit }) {
               disabled={loading}
             />
             <PlaceAutocomplete
-              key={`destination-${destination?.label ?? ''}`}
               label="Destination"
               value={destination}
               onChange={setDestination}

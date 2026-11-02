@@ -9,6 +9,12 @@ const DEBOUNCE_MS = 300
 
 export default function PlaceAutocomplete({ label, value, onChange, error, helperText, disabled }) {
   const [inputValue, setInputValue] = useState(value?.label ?? '')
+  const [previousValue, setPreviousValue] = useState(value)
+  // Show the new label when the value is changed from outside (e.g. origin/destination swap).
+  if (value !== previousValue) {
+    setPreviousValue(value)
+    setInputValue(value?.label ?? '')
+  }
   const [options, setOptions] = useState([])
   // The query whose results are currently in `options`.
   const [resolvedQuery, setResolvedQuery] = useState('')
