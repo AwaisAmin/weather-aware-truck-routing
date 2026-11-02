@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Map, { Layer, Marker, NavigationControl, Popup, Source } from 'react-map-gl/maplibre'
 import { setWorkerUrl } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
-import { Box } from '@mui/material'
+import { Box, LinearProgress, Paper, Typography, useMediaQuery } from '@mui/material'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { RISK_COLOR_EXPRESSION } from '../constants/risk.js'
 import CheckpointPopup from './CheckpointPopup.jsx'
@@ -13,7 +13,14 @@ import MapLegend from './MapLegend.jsx'
 setWorkerUrl(workerUrl)
 
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/positron'
-const INITIAL_VIEW = { longitude: -98.5, latitude: 39.5, zoom: 3.6 }
+// Contiguous United States, fitted to whatever size the map container has.
+const INITIAL_VIEW = {
+  bounds: [
+    [-125, 24],
+    [-66.5, 49.5],
+  ],
+  fitBoundsOptions: { padding: 20 },
+}
 const SELECTED_COLOR = '#1f5fbf'
 const OTHER_COLOR = '#8a99a8'
 const INTERACTIVE_LAYERS = ['checkpoints', 'routes-hit']
@@ -64,6 +71,7 @@ function boundsOf(routes) {
  */
 export default function RouteMap({
   plan,
+  loading,
   selectedRouteId,
   onSelectRoute,
   focus,
@@ -73,6 +81,8 @@ export default function RouteMap({
 }) {
   const mapRef = useRef(null)
   const [cursor, setCursor] = useState('')
+  // On touch layouts the map sits inside a scrolling page: pan with two fingers.
+  const isTouchLayout = useMediaQuery((theme) => theme.breakpoints.down('md'))
   const routes = useMemo(() => plan?.routes ?? [], [plan])
 
   // Rebuilt only when a new plan arrives; selection is handled in paint expressions.
@@ -94,6 +104,8 @@ export default function RouteMap({
   useEffect(() => {
     if (focus?.fromList && focusedCheckpoint && mapRef.current) {
       mapRef.current.easeTo({ center: [focusedCheckpoint.lon, focusedCheckpoint.lat], duration: 600 })
+      // On mobile the list sits below the map; bring the map back into view.
+      mapRef.current.getContainer().scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     }
   }, [focus, focusedCheckpoint])
 
@@ -148,6 +160,7 @@ export default function RouteMap({
       <Map
         ref={mapRef}
         initialViewState={INITIAL_VIEW}
+        cooperativeGestures={isTouchLayout}
         mapStyle={MAP_STYLE}
         interactiveLayerIds={routes.length ? INTERACTIVE_LAYERS : []}
         cursor={cursor}
@@ -157,7 +170,8 @@ export default function RouteMap({
         onLoad={fitToPlan}
         style={{ width: '100%', height: '100%' }}
       >
-        <NavigationControl position="top-right" showCompass={false} />
+        {/* Touch users pinch to zoom; the buttons would crowd a small map. */}
+        {!isTouchLayout && <NavigationControl position="top-right" showCompass={false} />}
 
         <Source id="routes" type="geojson" data={routesData}>
           <Layer
@@ -230,6 +244,17 @@ export default function RouteMap({
         )}
       </Map>
       {plan && <MapLegend />}
+      {loading && (
+        <>
+          <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 3 }} />
+          <MapMessage>Comparing truck routes and forecasts… this can take 5–15 seconds.</MapMessage>
+        </>
+      )}
+      {!plan && !loading && (
+        <MapMessage>
+          Enter an origin, destination, departure time and load to compare three truck routes by weather risk.
+        </MapMessage>
+      )}
     </Box>
   )
 }
@@ -311,5 +336,27 @@ function EndpointMarker({ lon, lat, color }) {
         }}
       />
     </Marker>
+  )
+}
+
+function MapMessage({ children }) {
+  return (
+    <Paper
+      elevation={3}
+      sx={{
+        position: 'absolute',
+        zIndex: 2,
+        top: 16,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: 'min(420px, calc(100% - 32px))',
+        px: 2,
+        py: 1.25,
+      }}
+    >
+      <Typography variant="body2" sx={{ textAlign: 'center' }}>
+        {children}
+      </Typography>
+    </Paper>
   )
 }

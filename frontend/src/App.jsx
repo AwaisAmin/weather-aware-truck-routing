@@ -1,7 +1,17 @@
 import { Suspense, lazy, useCallback, useRef, useState } from 'react'
-import { Alert, AppBar, Box, CircularProgress, Paper, Toolbar, Typography } from '@mui/material'
+import {
+  Alert,
+  AppBar,
+  Box,
+  CircularProgress,
+  Paper,
+  Toolbar,
+  Typography,
+  useMediaQuery,
+} from '@mui/material'
 import LocalShippingIcon from '@mui/icons-material/LocalShipping'
 import { fetchHeatmap, planTrip } from './api.js'
+import MapErrorBoundary from './components/MapErrorBoundary.jsx'
 import RouteResults from './components/RouteResults.jsx'
 import TripForm from './components/TripForm.jsx'
 import { downsample } from './utils/route.js'
@@ -22,6 +32,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [heatmapState, setHeatmapState] = useState(EMPTY_HEATMAP)
+  const isDesktop = useMediaQuery((theme) => theme.breakpoints.up('md'))
   const requestRef = useRef(null)
   const heatmapRequestRef = useRef(null)
 
@@ -74,8 +85,45 @@ export default function App() {
     setFocus(null)
   }, [])
 
+  const results = plan && (
+    <Box sx={{ opacity: loading ? 0.5 : 1, transition: 'opacity 200ms' }}>
+      <RouteResults
+        plan={plan}
+        selectedRouteId={selectedRouteId}
+        onSelectRoute={selectRoute}
+        focus={focus}
+        onFocus={setFocus}
+      />
+    </Box>
+  )
+
+  const map = (
+    <MapErrorBoundary>
+      <Suspense
+        fallback={
+          <Box sx={{ height: '100%', display: 'grid', placeItems: 'center' }}>
+            <CircularProgress />
+          </Box>
+        }
+      >
+        <RouteMap
+          plan={plan}
+          loading={loading}
+          selectedRouteId={selectedRouteId}
+          onSelectRoute={selectRoute}
+          focus={focus}
+          onFocus={setFocus}
+          heatmapState={heatmapState}
+          onRetryHeatmap={() => plan && loadHeatmap(plan)}
+        />
+      </Suspense>
+    </MapErrorBoundary>
+  )
+
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    // Desktop: fixed-height app with a scrolling sidebar. Mobile: one scrolling page of
+    // form, map, then results, so the map is never pushed below a long checkpoint list.
+    <Box sx={{ height: { md: '100%' }, display: 'flex', flexDirection: 'column' }}>
       <AppBar position="static" elevation={0}>
         <Toolbar variant="dense" sx={{ gap: 1.5 }}>
           <LocalShippingIcon />
@@ -93,7 +141,6 @@ export default function App() {
             width: { xs: '100%', md: SIDEBAR_WIDTH },
             flexShrink: 0,
             borderRight: { md: 1 },
-            borderBottom: { xs: 1, md: 0 },
             borderColor: 'divider',
             overflowY: { md: 'auto' },
             p: 2,
@@ -105,38 +152,12 @@ export default function App() {
               {error}
             </Alert>
           )}
-          {plan && (
-            <Box sx={{ mt: 2, opacity: loading ? 0.5 : 1, transition: 'opacity 200ms' }}>
-              <RouteResults
-                plan={plan}
-                selectedRouteId={selectedRouteId}
-                onSelectRoute={selectRoute}
-                focus={focus}
-                onFocus={setFocus}
-              />
-            </Box>
-          )}
+          {isDesktop && results && <Box sx={{ mt: 2 }}>{results}</Box>}
         </Paper>
 
-        <Box sx={{ flex: 1, minHeight: { xs: 420, md: 0 }, bgcolor: 'grey.200' }}>
-          <Suspense
-            fallback={
-              <Box sx={{ height: '100%', display: 'grid', placeItems: 'center' }}>
-                <CircularProgress />
-              </Box>
-            }
-          >
-            <RouteMap
-              plan={plan}
-              selectedRouteId={selectedRouteId}
-              onSelectRoute={selectRoute}
-              focus={focus}
-              onFocus={setFocus}
-              heatmapState={heatmapState}
-              onRetryHeatmap={() => plan && loadHeatmap(plan)}
-            />
-          </Suspense>
-        </Box>
+        <Box sx={{ flex: { md: 1 }, height: { xs: '70vh', md: 'auto' }, bgcolor: 'grey.200' }}>{map}</Box>
+
+        {!isDesktop && results && <Box sx={{ p: 2 }}>{results}</Box>}
       </Box>
     </Box>
   )
