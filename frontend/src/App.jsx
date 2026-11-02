@@ -1,14 +1,18 @@
 import { Suspense, lazy, useCallback, useRef, useState } from 'react'
 import { Alert, AppBar, Box, CircularProgress, Paper, Toolbar, Typography } from '@mui/material'
 import LocalShippingIcon from '@mui/icons-material/LocalShipping'
-import { planTrip } from './api.js'
+import { fetchHeatmap, planTrip } from './api.js'
 import RouteResults from './components/RouteResults.jsx'
 import TripForm from './components/TripForm.jsx'
+import { downsample } from './utils/route.js'
 
 // MapLibre is the largest dependency; load it in parallel so the form renders first.
 const RouteMap = lazy(() => import('./components/RouteMap.jsx'))
 
 const SIDEBAR_WIDTH = 400
+// Keeps the heatmap request small; the corridor is ~40 miles wide, so detail is not needed.
+const HEATMAP_POINTS_PER_ROUTE = 150
+const EMPTY_HEATMAP = { data: null, loading: false, error: null }
 
 export default function App() {
   const [plan, setPlan] = useState(null)
@@ -17,25 +21,53 @@ export default function App() {
   const [focus, setFocus] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [heatmapState, setHeatmapState] = useState(EMPTY_HEATMAP)
   const requestRef = useRef(null)
+  const heatmapRequestRef = useRef(null)
 
-  const handlePlan = useCallback(async (payload) => {
-    requestRef.current?.abort()
+  const loadHeatmap = useCallback(async (forPlan) => {
+    heatmapRequestRef.current?.abort()
     const controller = new AbortController()
-    requestRef.current = controller
-    setLoading(true)
-    setError(null)
+    heatmapRequestRef.current = controller
+    setHeatmapState({ data: null, loading: true, error: null })
     try {
-      const result = await planTrip(payload, { signal: controller.signal })
-      setPlan(result)
-      setSelectedRouteId(result.recommended_route_id)
-      setFocus(null)
+      const data = await fetchHeatmap(
+        {
+          routes: forPlan.routes.map((route) => downsample(route.geometry, HEATMAP_POINTS_PER_ROUTE)),
+          departure: forPlan.departure,
+          load_lb: forPlan.load_lb,
+        },
+        { signal: controller.signal },
+      )
+      setHeatmapState({ data, loading: false, error: null })
     } catch (err) {
-      if (err.name !== 'AbortError') setError(err.message)
-    } finally {
-      if (requestRef.current === controller) setLoading(false)
+      if (err.name !== 'AbortError') setHeatmapState({ data: null, loading: false, error: err.message })
     }
   }, [])
+
+  const handlePlan = useCallback(
+    async (payload) => {
+      requestRef.current?.abort()
+      heatmapRequestRef.current?.abort()
+      const controller = new AbortController()
+      requestRef.current = controller
+      setLoading(true)
+      setError(null)
+      try {
+        const result = await planTrip(payload, { signal: controller.signal })
+        setPlan(result)
+        setSelectedRouteId(result.recommended_route_id)
+        setFocus(null)
+        // The heatmap loads after the routes so they appear as soon as possible.
+        loadHeatmap(result)
+      } catch (err) {
+        if (err.name !== 'AbortError') setError(err.message)
+      } finally {
+        if (requestRef.current === controller) setLoading(false)
+      }
+    },
+    [loadHeatmap],
+  )
 
   const selectRoute = useCallback((routeId) => {
     setSelectedRouteId(routeId)
@@ -100,6 +132,8 @@ export default function App() {
               onSelectRoute={selectRoute}
               focus={focus}
               onFocus={setFocus}
+              heatmapState={heatmapState}
+              onRetryHeatmap={() => plan && loadHeatmap(plan)}
             />
           </Suspense>
         </Box>

@@ -21,7 +21,13 @@ function CheckpointList({ route, focusedIndex, onFocus }) {
           sx={{ gap: 1.5, borderRadius: 1, py: 0.5 }}
         >
           <Box
-            sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: riskColor(checkpoint.risk.level), flexShrink: 0 }}
+            sx={{
+              width: 10,
+              height: 10,
+              borderRadius: '50%',
+              bgcolor: riskColor(checkpoint.risk.level),
+              flexShrink: 0,
+            }}
           />
           <Typography variant="body2" sx={{ width: 56, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
             {Math.round(checkpoint.mile)} mi

@@ -12,7 +12,11 @@ function Stat({ label, value, emphasize }) {
       </Typography>
       <Typography
         variant="body2"
-        sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: emphasize ? 'error.main' : 'text.primary' }}
+        sx={{
+          fontWeight: 600,
+          fontVariantNumeric: 'tabular-nums',
+          color: emphasize ? 'error.main' : 'text.primary',
+        }}
       >
         {value}
       </Typography>

@@ -13,6 +13,14 @@ MAX_DAYS_AHEAD = 5
 MAX_LOAD_LB = 100_000
 
 
+def validate_departure(value):
+    now = timezone.now()
+    if value > now + timedelta(days=MAX_DAYS_AHEAD):
+        raise serializers.ValidationError(f"Departure must be within {MAX_DAYS_AHEAD} days.")
+    # A departure in the past means "leave now".
+    return max(value, now).replace(microsecond=0)
+
+
 class LocationSerializer(serializers.Serializer):
     lat = serializers.FloatField(min_value=-90, max_value=90)
     lon = serializers.FloatField(min_value=-180, max_value=180)
@@ -27,14 +35,40 @@ class PlanRequestSerializer(serializers.Serializer):
     interval_miles = serializers.ChoiceField(choices=SAMPLE_INTERVALS_MILES, default=25)
 
     def validate_departure(self, value):
-        now = timezone.now()
-        if value > now + timedelta(days=MAX_DAYS_AHEAD):
-            raise serializers.ValidationError(f"Departure must be within {MAX_DAYS_AHEAD} days.")
-        # A departure in the past means "leave now".
-        return max(value, now).replace(microsecond=0)
+        return validate_departure(value)
 
     def validate(self, attrs):
         origin, destination = attrs["origin"], attrs["destination"]
         if abs(origin["lat"] - destination["lat"]) < 1e-4 and abs(origin["lon"] - destination["lon"]) < 1e-4:
             raise serializers.ValidationError("Origin and destination must be different places.")
         return attrs
+
+
+MAX_HEATMAP_ROUTES = 3
+MAX_HEATMAP_POINTS_PER_ROUTE = 500
+
+
+class HeatmapRequestSerializer(serializers.Serializer):
+    # Route geometries as [lon, lat] pairs (as returned by /api/plan/), downsampled by the client.
+    routes = serializers.ListField(
+        child=serializers.ListField(
+            child=serializers.ListField(child=serializers.FloatField(), min_length=2, max_length=2),
+            min_length=2,
+            max_length=MAX_HEATMAP_POINTS_PER_ROUTE,
+        ),
+        min_length=1,
+        max_length=MAX_HEATMAP_ROUTES,
+    )
+    departure = serializers.DateTimeField()
+    load_lb = serializers.FloatField(min_value=0, max_value=MAX_LOAD_LB)
+
+    def validate_departure(self, value):
+        return validate_departure(value)
+
+    def validate_routes(self, routes):
+        for route in routes:
+            for lon, lat in route:
+                if not (-180 <= lon <= 180 and -90 <= lat <= 90):
+                    raise serializers.ValidationError("Coordinates must be [lon, lat] in degrees.")
+        # Convert to (lat, lon) for the domain code.
+        return [[(lat, lon) for lon, lat in route] for route in routes]

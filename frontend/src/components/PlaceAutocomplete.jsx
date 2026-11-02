@@ -51,7 +51,9 @@ export default function PlaceAutocomplete({ label, value, onChange, error, helpe
       getOptionLabel={(option) => option.label}
       getOptionKey={(option) => `${option.label}-${option.lat}-${option.lon}`}
       isOptionEqualToValue={(a, b) => a.lat === b.lat && a.lon === b.lon}
-      noOptionsText={inputValue.trim().length < MIN_QUERY_LENGTH ? 'Type a city or address' : 'No places found'}
+      noOptionsText={
+        inputValue.trim().length < MIN_QUERY_LENGTH ? 'Type a city or address' : 'No places found'
+      }
       onChange={(_, place) => onChange(place)}
       onInputChange={(_, text) => setInputValue(text)}
       renderInput={(params) => (

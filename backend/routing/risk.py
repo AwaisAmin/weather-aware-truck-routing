@@ -111,3 +111,36 @@ def assess(wind_mph, rain_in_hr, snow_in_hr, load_lb):
         snow=snow,
         load_adjusted=load_level > weather_level,
     )
+
+
+# Points where each factor's score reaches the next level; used for a continuous score.
+_WIND_SCORE_POINTS = ((0, 0), (25, 1), (35, 2), (45, 3), (55, 4))
+_RAIN_SCORE_POINTS = ((0, 0), (0.10, 1), (0.25, 2), (0.50, 3), (1.00, 4))
+_SNOW_SCORE_POINTS = ((0, 0), (0.5, 1), (1.0, 2), (2.0, 3), (3.0, 4))
+
+
+def _score(value, points):
+    if value >= points[-1][0]:
+        return float(points[-1][1])
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        if value < x1:
+            return y0 + (y1 - y0) * (value - x0) / (x1 - x0)
+    return 0.0
+
+
+def continuous_score(wind_mph, rain_in_hr, snow_in_hr, load_lb):
+    """Risk on a 0-4 scale that rises smoothly within each level, for heatmap shading.
+
+    The integer part tracks the level from `assess` (Low=0 ... No Travel=4), so a
+    point is never drawn safer than its classification.
+    """
+    weather = max(
+        _score(wind_mph, _WIND_SCORE_POINTS),
+        _score(rain_in_hr, _RAIN_SCORE_POINTS),
+        _score(snow_in_hr, _SNOW_SCORE_POINTS),
+    )
+    level = assess(wind_mph, rain_in_hr, snow_in_hr, load_lb).level
+    if level == RiskLevel.NO_TRAVEL:
+        return 4.0
+    # Clamp into the level's band so shading always agrees with the classification.
+    return min(max(weather, float(level)), level + 0.99)

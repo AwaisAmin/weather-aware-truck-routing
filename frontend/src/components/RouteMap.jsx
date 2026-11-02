@@ -6,6 +6,7 @@ import { Box } from '@mui/material'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { RISK_COLOR_EXPRESSION } from '../constants/risk.js'
 import CheckpointPopup from './CheckpointPopup.jsx'
+import ForecastOverlay from './ForecastOverlay.jsx'
 import MapLegend from './MapLegend.jsx'
 
 // MapLibre locates its worker relative to its own module, which breaks once Vite bundles it.
@@ -61,7 +62,15 @@ function boundsOf(routes) {
  * focus: { routeId, index, fromList } | null — the checkpoint whose popup is open.
  * When it was chosen from the sidebar list, the map pans to it.
  */
-export default function RouteMap({ plan, selectedRouteId, onSelectRoute, focus, onFocus }) {
+export default function RouteMap({
+  plan,
+  selectedRouteId,
+  onSelectRoute,
+  focus,
+  onFocus,
+  heatmapState,
+  onRetryHeatmap,
+}) {
   const mapRef = useRef(null)
   const [cursor, setCursor] = useState('')
   const routes = useMemo(() => plan?.routes ?? [], [plan])
@@ -114,7 +123,15 @@ export default function RouteMap({ plan, selectedRouteId, onSelectRoute, focus, 
   const checkpointPaint = useMemo(
     () => ({
       'circle-color': RISK_COLOR_EXPRESSION,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, ['case', isSelected, 4, 2.5], 9, ['case', isSelected, 8, 5]],
+      'circle-radius': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        4,
+        ['case', isSelected, 4, 2.5],
+        9,
+        ['case', isSelected, 8, 5],
+      ],
       'circle-stroke-color': '#ffffff',
       'circle-stroke-width': ['case', isSelected, 1.5, 0.75],
       'circle-opacity': ['case', isSelected, 1, 0.6],
@@ -156,11 +173,20 @@ export default function RouteMap({ plan, selectedRouteId, onSelectRoute, focus, 
             paint={routeLinePaint}
           />
           {/* Wide invisible line so routes are easy to click or tap. */}
-          <Layer id="routes-hit" type="line" paint={{ 'line-color': '#000000', 'line-width': 16, 'line-opacity': 0 }} />
+          <Layer
+            id="routes-hit"
+            type="line"
+            paint={{ 'line-color': '#000000', 'line-width': 16, 'line-opacity': 0 }}
+          />
         </Source>
 
         <Source id="checkpoints" type="geojson" data={checkpointsData}>
-          <Layer id="checkpoints" type="circle" layout={{ 'circle-sort-key': sortKey }} paint={checkpointPaint} />
+          <Layer
+            id="checkpoints"
+            type="circle"
+            layout={{ 'circle-sort-key': sortKey }}
+            paint={checkpointPaint}
+          />
         </Source>
 
         {routes.map((route, index) => (
@@ -178,6 +204,16 @@ export default function RouteMap({ plan, selectedRouteId, onSelectRoute, focus, 
             <EndpointMarker lon={plan.origin.lon} lat={plan.origin.lat} color="#2e7d32" />
             <EndpointMarker lon={plan.destination.lon} lat={plan.destination.lat} color="#c62828" />
           </>
+        )}
+
+        {plan && (
+          <ForecastOverlay
+            heatmap={heatmapState.data}
+            loading={heatmapState.loading}
+            error={heatmapState.error}
+            onRetry={onRetryHeatmap}
+            selectedRoute={routes.find((r) => r.id === selectedRouteId)}
+          />
         )}
 
         {focusedCheckpoint && (
@@ -264,7 +300,15 @@ function EndpointMarker({ lon, lat, color }) {
   return (
     <Marker longitude={lon} latitude={lat} anchor="center">
       <Box
-        sx={{ width: 16, height: 16, borderRadius: '50%', bgcolor: color, border: 3, borderColor: 'common.white', boxShadow: 2 }}
+        sx={{
+          width: 16,
+          height: 16,
+          borderRadius: '50%',
+          bgcolor: color,
+          border: 3,
+          borderColor: 'common.white',
+          boxShadow: 2,
+        }}
       />
     </Marker>
   )

@@ -88,3 +88,4 @@ def test_geocode_endpoint(client, monkeypatch):
 
 def test_geocode_short_query_returns_nothing(client):
     assert client.get("/api/geocode/", {"q": "D"}).json() == {"results": []}
+

@@ -33,3 +33,12 @@ export function planTrip(payload, { signal } = {}) {
     signal,
   })
 }
+
+export function fetchHeatmap(payload, { signal } = {}) {
+  return request('/api/heatmap/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal,
+  })
+}
